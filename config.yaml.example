@@ -1,0 +1,4 @@
+CQ-URL: http://host:port
+receiver-id: QQ-number
+redis-server: host:port
+redis-key: redis key
