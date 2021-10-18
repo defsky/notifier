@@ -1,16 +1,14 @@
 package main
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"net/url"
+	"notifier/bot"
+	"notifier/db"
+	"notifier/target"
 	"os"
 	"os/signal"
-	"time"
+	"sync"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/spf13/viper"
 )
 
@@ -18,6 +16,9 @@ var config *viper.Viper
 
 const configFileName string = "config"
 const configFileType string = "yaml"
+
+var messageChannel chan target.BotMessage
+var stopSignalChannel chan struct{}
 
 func main() {
 	log.Println("load config " + configFileName + "." + configFileType + " ...")
@@ -29,92 +30,67 @@ func main() {
 		log.Fatalln(err)
 	}
 	redisAddress := config.GetString("redis-server")
-	redisKey := config.GetString("redis-key")
-	cqurl := config.GetString("CQ-URL")
-	recvid := config.GetString("receiver-id")
 
-	log.Println("CQ URL: " + cqurl)
-	log.Println("Receiver QQ: " + recvid)
-	log.Println("Redis Address: " + redisAddress)
-	log.Println("Redis Key: " + redisKey)
-
-	conn, err := redis.Dial("tcp", redisAddress)
-	if err != nil {
-		log.Fatalln("redis dial err =", err)
-	}
-	defer conn.Close() // 关闭redis数据库
+	db.InitRedis(redisAddress)
 	log.Println("Redis server connected.")
+	defer db.RedisConn.Close()
 
-	cache := GetCache()
-	defer cache.Destroy()
+	messageChannel = make(chan target.BotMessage, 10)
+	stopSignalChannel = make(chan struct{})
 
-	// 2.通过go向redis中写入数据 string[key-val]
-	// _, err = conn.Do("Set", "name", "tom and jerry")
-	// if err!=nil{
-	// 	log.Println("set err =", err)
-	// 	return
-	// }
+	wg := &sync.WaitGroup{}
+	wg1 := &sync.WaitGroup{}
+	// message sender routine
+	wg1.Add(1)
+	go func() {
+		dingBot := bot.NewBot(config.GetString("dingding-webhook"))
+		for m := range messageChannel {
+			errcode := dingBot.SendMessage(m.Message)
+			if errcode != 0 {
+				log.Printf("SendMessage error: target(%s) errcode(%d)\n", m.TargetName, errcode)
+			}
+		}
+		for _, ok := <-messageChannel; ok; {
+		}
+		log.Println("Message sender stopped.")
+		wg1.Done()
+	}()
 
-	// 通过go向redis中读取数据 string[key-val]
+	targets := config.GetStringMap("targets")
+
+	for k, _ := range targets {
+		targetConfig := config.Sub("targets." + k)
+		typeName := targetConfig.GetString("type")
+		if len(typeName) == 0 {
+			log.Println(k, "need non-null string for config key 'type'")
+			continue
+		}
+		if t := target.NewTarget(typeName); t != nil {
+			if tt, err := t.SetConfig(targetConfig, messageChannel, stopSignalChannel, wg); err != nil {
+				log.Println("start target worker failed: ", err)
+			} else {
+				tt.Start()
+			}
+		} else {
+			log.Println("Undefined target type name: ", typeName)
+		}
+	}
 
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, os.Kill)
 
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
+	// wait system interrupt, ctrl+c, kill
+	<-c
+	log.Println("Stopping service ...")
 
-DONE:
-	for {
-		select {
-		case <-c:
-			log.Println("Interrupt signal detected")
-			break DONE
-		case <-ticker.C:
-			r, err := redis.Bytes(conn.Do("Get", redisKey))
-			if err != nil {
-				log.Println("redis Get error = ", err)
-				break
-			}
-			data := &RMAData{}
-			err = json.Unmarshal(r, data)
-			if err != nil {
-				log.Println("Unmarshal data error: ", err)
-				break
-			}
+	// close target workers
+	close(stopSignalChannel)
+	wg.Wait()
+	log.Println("All workers stopped.")
 
-			msg := ""
-			needNotifyDocNo := data.GetDocNo()
-			if len(needNotifyDocNo) <= 0 {
-				log.Println("no data need to notify")
-				break
-			}
-			for _, v := range needNotifyDocNo {
-				if len(msg) > 0 {
-					msg = msg + ","
-				}
-				msg = msg + v
-			}
-			msg = msg + " 霞姐 估价金额"
+	// close message sender
+	close(messageChannel)
+	wg1.Wait()
 
-			escapedMsg := url.QueryEscape(msg)
-			reqURL := cqurl + "/send_private_msg?user_id=" + recvid + "&message=" + escapedMsg
-
-			client := &http.Client{}
-			log.Println("Get: ", reqURL)
-			resp, err := client.Get(reqURL)
-			if err != nil {
-				log.Println("send message error: ", err.Error())
-				break
-			}
-			respData, err := ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
-
-			if err != nil {
-				log.Println("Read response data error: ", err.Error())
-				break
-			}
-			log.Println("Response: ", string(respData))
-		}
-		log.Println("Sleep 15s ...")
-	}
+	log.Println("Main routine stopped.")
 }

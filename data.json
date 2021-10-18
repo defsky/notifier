@@ -51,7 +51,7 @@
             "0.000000000"
         ]
     ],
-    "response":{
+    "response": {
         "data": {
             "message_id": 1195908776
         },
@@ -60,3 +60,57 @@
     }
 }
 
+[
+    {
+        "name": "退回处理",
+        "value": 0,
+        "drillkey": "dashboard:baddoc:badrmaagg"
+    },
+    {
+        "name": "客户档案",
+        "value": 0,
+        "drillkey": "dashboard:baddoc:badsite"
+    },
+    {
+        "name": "重复单据",
+        "value": 0,
+        "drillkey": "dashboard:baddoc:repeated"
+    },
+    {
+        "name": "未审核单",
+        "value": 90,
+        "drillkey": "dashboard:baddoc:notapproved"
+    },
+    {
+        "name": "生产订单",
+        "value": 3,
+        "drillkey": "dashboard:baddoc:badmoagg"
+    },
+    {
+        "name": "BOM",
+        "value": 3,
+        "drillkey": "dashboard:baddoc:badbomagg"
+    }
+]
+{
+    "colNames": [
+        {
+            "name": "单据类型",
+            "width": 100
+        },
+        {
+            "name": "数量",
+            "width": 100
+        }
+    ],
+    "data": [
+        [
+            "完工报告",
+            "63"
+        ],
+        [
+            "出货单",
+            "59"
+        ]
+    ]
+}

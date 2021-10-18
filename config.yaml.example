@@ -1,4 +1,44 @@
-CQ-URL: http://host:port
-receiver-id: QQ-number
-redis-server: host:port
-redis-key: redis key
+cache:
+  # 数据生存时间，小时
+  ttl: 24
+  # 过期数据的清理延迟，秒
+  clean-delay: 10
+  # 持久化数据的文件名
+  db-name: cache.db
+
+# cqhttp 服务参数
+cqhttp:
+  baseurl: http://0.0.0.0:5700
+  # 接收消息的 QQ 号
+  receiver-id: 1111111
+
+# 钉钉群聊机器人的 Webhook 地址
+dingding-webhook: https://oapi.dingtalk.com/robot/send?access_token=xxxx
+
+# redis 服务器地址和端口
+redis-server: 127.0.0.1:6379
+redis-key: dashboard:baddoc:badrmaagg
+targets:
+  # target type name, 代码中需要有对应的类型定义
+  baddoc:
+    type: baddocTarget
+    api: http://127.0.0.1:8000/dashboard/getvalue
+    # 重复通知间隔时间，分钟
+    rma-doc-delay: 1440
+    unproved-doc-threshold: 100
+    unproved-doc-ttl: 5
+    # 钉钉手机号
+    unproved-doc-receiver: 135xxxxxxxx
+    memo: 估价金额
+  ac:
+    type: acTarget
+    # {"real":"24.9","avg":"26.1","alive":"1"}
+    api: http://127.0.0.1:8000/dashboard/getac
+    repeat-delay: 10
+    memo: 机房空调温度
+  paodan:
+    type: paodanTarget
+    # {"paodan":"1","qlen":"8"}
+    api: http://127.0.0.1:8000/dashboard/getstatus
+    repeat-delay: 5
+    memo: 门店抛单服务
