@@ -25,6 +25,7 @@ type Cache interface {
 }
 
 var cacheInstance Cache
+var lck sync.Mutex
 
 type TTL struct {
 	CreateTime int64 `json:"createtime"`
@@ -39,8 +40,8 @@ type cache struct {
 
 func (c *cache) Persist() {
 	c.lock.Lock()
+	defer c.lock.Unlock()
 	data, err := json.Marshal(c.Data)
-	c.lock.Unlock()
 
 	if err != nil {
 		log.Fatalln(err)
@@ -100,6 +101,9 @@ DONE:
 }
 
 func GetCache() Cache {
+	lck.Lock()
+	defer lck.Unlock()
+
 	if cacheInstance != nil {
 		return cacheInstance
 	}
@@ -147,4 +151,9 @@ func checkFileIsExist(filename string) bool {
 		exist = false
 	}
 	return exist
+}
+
+func Init() {
+	lck = sync.Mutex{}
+	GetCache()
 }

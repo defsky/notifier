@@ -17,6 +17,7 @@ import (
 type baddocTarget struct {
 	baseTarget
 	api                  string
+	checkDelay           int
 	rmaDocMemo           string
 	rmaDocDelay          int64
 	rmaDocReceiver       string
@@ -46,7 +47,12 @@ func (t baddocTarget) SetConfig(cfg *viper.Viper, ch chan BotMessage, stop chan 
 	if t.api = t.Config.GetString("api"); len(t.api) == 0 {
 		return nil, errors.New("need string value for config key 'api'")
 	}
-
+	if t.checkDelay = t.Config.GetInt("check-delay"); t.checkDelay <= 0 {
+		return nil, errors.New("need positive int value for config key 'check-delay'")
+	}
+	if t.checkDelay <= 30 {
+		t.checkDelay = 30
+	}
 	t.rmaDocMemo = t.Config.GetString("memo")
 
 	if t.rmaDocDelay = int64(t.Config.GetInt("rma-doc-delay") * 60); t.rmaDocDelay <= 0 {
@@ -74,6 +80,9 @@ func (t baddocTarget) SetConfig(cfg *viper.Viper, ch chan BotMessage, stop chan 
 
 func (t baddocTarget) worker() {
 	log.Println("target worker started: ", t.Name)
+	ticker := time.NewTicker(time.Second * time.Duration(t.checkDelay))
+	defer ticker.Stop()
+	processBadDocStatus(t)
 DONE:
 	for {
 		select {
@@ -82,11 +91,10 @@ DONE:
 				log.Println(t.Name, "target worker stopping ...")
 				break DONE
 			}
-		default:
+		case <-ticker.C:
 			processBadDocStatus(t)
 		}
-		log.Println(t.Name, "target worker sleep 15 seconds ...")
-		time.Sleep(time.Second * 15)
+		log.Println(t.Name, fmt.Sprintf("target worker sleep %d seconds ...", t.checkDelay))
 	}
 	log.Println(t.Name, "target worker stopped.")
 	t.wg.Done()
@@ -100,6 +108,7 @@ type baddoc struct {
 type baddocList []baddoc
 
 func processBadDocStatus(t baddocTarget) {
+	log.Println("query target status:", t.Name)
 	querystr := "?key="
 	data, err := t.Get(t.api + querystr + "dashboard:baddoc")
 	if err != nil {

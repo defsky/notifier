@@ -55,6 +55,8 @@ var typeTable map[string]Target
 
 func init() {
 	typeTable = make(map[string]Target)
+
 	typeTable["baddocTarget"] = baddocTarget{}
 	typeTable["paodanTarget"] = paodanTarget{}
+	typeTable["acTarget"] = acTarget{}
 }

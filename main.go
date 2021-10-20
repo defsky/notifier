@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"notifier/bot"
+	"notifier/cache"
 	"notifier/db"
 	"notifier/target"
 	"os"
@@ -30,6 +31,8 @@ func main() {
 		log.Fatalln(err)
 	}
 	redisAddress := config.GetString("redis-server")
+
+	cache.Init()
 
 	db.InitRedis(redisAddress)
 	log.Println("Redis server connected.")

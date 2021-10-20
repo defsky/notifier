@@ -18,6 +18,7 @@ import (
 type paodanTarget struct {
 	baseTarget
 	api               string
+	checkDelay        int
 	isAlive           bool
 	notAliveDelay     int64
 	queueLenThreshold int
@@ -48,7 +49,12 @@ func (t paodanTarget) SetConfig(cfg *viper.Viper, ch chan BotMessage, stop chan 
 	if t.api = t.Config.GetString("api"); len(t.api) == 0 {
 		return nil, errors.New("need string value for config key 'api'")
 	}
-
+	if t.checkDelay = t.Config.GetInt("check-delay"); t.checkDelay <= 0 {
+		return nil, errors.New("need positive int value for config key 'check-delay'")
+	}
+	if t.checkDelay <= 30 {
+		t.checkDelay = 30
+	}
 	if t.notAliveDelay = t.Config.GetInt64("not-alive-delay") * 60; t.notAliveDelay <= 0 {
 		return nil, errors.New("need positive int value for config key 'not-alive-delay'")
 	}
@@ -71,6 +77,9 @@ func (t paodanTarget) SetConfig(cfg *viper.Viper, ch chan BotMessage, stop chan 
 func (t paodanTarget) worker() {
 	log.Println("target worker started: ", t.Name)
 	t.isAlive = true
+	ticker := time.NewTicker(time.Second * time.Duration(t.checkDelay))
+	defer ticker.Stop()
+	processPaodanStatus(t)
 DONE:
 	for {
 		select {
@@ -79,17 +88,17 @@ DONE:
 				log.Println(t.Name, "target worker stopping ...")
 				break DONE
 			}
-		default:
+		case <-ticker.C:
 			processPaodanStatus(t)
 		}
-		log.Println(t.Name, "target worker sleep 20 seconds ...")
-		time.Sleep(time.Second * 20)
+		log.Println(t.Name, fmt.Sprintf("target worker sleep %d seconds ...", t.checkDelay))
 	}
 	log.Println(t.Name, "target worker stopped.")
 	t.wg.Done()
 }
 
 func processPaodanStatus(t paodanTarget) {
+	log.Println("query target status:", t.Name)
 	resp, err := t.Get(t.api)
 	if err != nil {
 		log.Println(t.Name, "Get api data error: ", err)
@@ -102,6 +111,7 @@ func processPaodanStatus(t paodanTarget) {
 	}
 	if err = status.FormatData(); err != nil {
 		log.Println("format pandan status data error: ", err)
+		return
 	}
 	if status.IsAlive {
 		// 状态变为正常

@@ -1,2 +1,2 @@
 # notifier
-send notify message by go-cqhttp
+send notify message by dingding bot or go-cqhttp
