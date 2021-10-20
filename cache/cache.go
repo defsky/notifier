@@ -14,8 +14,13 @@ const CleanDelaySeconds float32 = 10
 const CacheFileName string = "cache.db"
 
 type Cache interface {
+	// destroy the cache instance
 	Destroy()
-	IsExpired(string, int64) bool
+
+	// check if the 'key' in cache is expired for 'ttl'
+	IsExpired(key string, ttl int64) bool
+
+	// persist cache data into file
 	Persist()
 }
 
@@ -50,6 +55,7 @@ func (c *cache) Destroy() {
 	c.chDesdroy <- struct{}{}
 	close(c.chDesdroy)
 }
+
 func (c *cache) IsExpired(s string, ttl int64) bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()

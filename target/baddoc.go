@@ -17,8 +17,9 @@ import (
 type baddocTarget struct {
 	baseTarget
 	api                  string
-	memo                 string
+	rmaDocMemo           string
 	rmaDocDelay          int64
+	rmaDocReceiver       string
 	unprovedDocTTL       int64
 	unprovedDocThreshold int
 	unprovedDocReceiver  string
@@ -34,39 +35,37 @@ func (t baddocTarget) SetConfig(cfg *viper.Viper, ch chan BotMessage, stop chan 
 	t.client = &http.Client{}
 	t.wg = wg
 
-	if ch == nil {
+	if t.M = ch; t.M == nil {
 		return nil, errors.New(t.Name + ", message channel is nil")
 	}
-	t.M = ch
-	if stop == nil {
+
+	if t.Kill = stop; t.Kill == nil {
 		return nil, errors.New(t.Name + ", stop channel is nil")
 	}
-	t.Kill = stop
 
-	t.api = t.Config.GetString("api")
-	if len(t.api) == 0 {
+	if t.api = t.Config.GetString("api"); len(t.api) == 0 {
 		return nil, errors.New("need string value for config key 'api'")
 	}
 
-	t.memo = t.Config.GetString("memo")
+	t.rmaDocMemo = t.Config.GetString("memo")
 
-	t.rmaDocDelay = int64(t.Config.GetInt("rma-doc-delay") * 60)
-	if t.rmaDocDelay <= 0 {
+	if t.rmaDocDelay = int64(t.Config.GetInt("rma-doc-delay") * 60); t.rmaDocDelay <= 0 {
 		return nil, errors.New("need positive int value for target key 'rma-doc-delay'")
 	}
 
-	t.unprovedDocTTL = int64(t.Config.GetInt("unproved-doc-ttl") * 60)
-	if t.unprovedDocTTL <= 0 {
+	if t.rmaDocReceiver = t.Config.GetString(("rma-doc-receiver")); len(t.rmaDocReceiver) == 0 {
+		return nil, errors.New("need string value for config key 'rma-doc-receiver'")
+	}
+
+	if t.unprovedDocTTL = int64(t.Config.GetInt("unproved-doc-ttl") * 60); t.unprovedDocTTL <= 0 {
 		return nil, errors.New("need positive int value for target key 'unproved-doc-ttl'")
 	}
 
-	t.unprovedDocThreshold = t.Config.GetInt("unproved-doc-threshold")
-	if t.unprovedDocThreshold <= 0 {
+	if t.unprovedDocThreshold = t.Config.GetInt("unproved-doc-threshold"); t.unprovedDocThreshold <= 0 {
 		return nil, errors.New("need positive int value for target key 'unproved-doc-threshold'")
 	}
 
-	t.unprovedDocReceiver = t.Config.GetString("unproved-doc-receiver")
-	if len(t.unprovedDocReceiver) == 0 {
+	if t.unprovedDocReceiver = t.Config.GetString("unproved-doc-receiver"); len(t.unprovedDocReceiver) == 0 {
 		return nil, errors.New("need string value for target key 'unproved-doc-receiver'")
 	}
 
@@ -80,16 +79,16 @@ DONE:
 		select {
 		case _, ok := <-t.Kill:
 			if !ok {
-				log.Println(t.Name, "worker stopping ...")
+				log.Println(t.Name, "target worker stopping ...")
 				break DONE
 			}
 		default:
-			processTargetStatus(t)
+			processBadDocStatus(t)
 		}
-		log.Println(t.Name, "worker sleep 15 seconds ...")
+		log.Println(t.Name, "target worker sleep 15 seconds ...")
 		time.Sleep(time.Second * 15)
 	}
-	log.Println(t.Name, "worker stopped.")
+	log.Println(t.Name, "target worker stopped.")
 	t.wg.Done()
 }
 
@@ -100,7 +99,7 @@ type baddoc struct {
 }
 type baddocList []baddoc
 
-func processTargetStatus(t baddocTarget) {
+func processBadDocStatus(t baddocTarget) {
 	querystr := "?key="
 	data, err := t.Get(t.api + querystr + "dashboard:baddoc")
 	if err != nil {
@@ -129,13 +128,14 @@ func processTargetStatus(t baddocTarget) {
 				}
 			case "未审核单":
 				if row.Value < t.unprovedDocThreshold {
-					m, err := processUnproved(row, t, querystr)
-					if err != nil {
-						log.Println(err)
-					}
-					if m != nil {
-						t.M <- *m
-					}
+					break
+				}
+				m, err := processUnproved(row, t, querystr)
+				if err != nil {
+					log.Println(err)
+				}
+				if m != nil {
+					t.M <- *m
 				}
 			default:
 				baddocText = baddocSummary(baddocText, row)
@@ -157,11 +157,11 @@ func processUnproved(row baddoc, t baddocTarget, querystr string) (*BotMessage, 
 
 	detail, err := t.Get(t.api + querystr + row.DrillKey)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("%s %s %s %s", t.Name, row.Name, "Get detail data error: ", err))
+		return nil, errors.New(fmt.Sprintf("%s %s %s %s", t.Name, row.Name, "Get unproved detail data error: ", err))
 	}
 	detailData := &DetailData{}
 	if err = json.Unmarshal(detail, detailData); err != nil {
-		return nil, errors.New(fmt.Sprintf("%s %s %s %s", t.Name, row.Name, "Unmarshal detail data error: ", err))
+		return nil, errors.New(fmt.Sprintf("%s %s %s %s", t.Name, row.Name, "Unmarshal unproved detail data error: ", err))
 	}
 	msg := fmt.Sprintf("%s合计: %d", row.Name, row.Value)
 	for _, row := range detailData.Data {
@@ -204,43 +204,16 @@ func processRMA(t baddocTarget, querystr string, row baddoc) (*BotMessage, error
 				}
 				msg = msg + v
 			}
-			msg = msg + " " + t.memo
+			msg = msg + " " + t.rmaDocMemo
 
 			return &BotMessage{
 				TargetName: t.Name,
 				Message: bot.NewMessage(bot.TextMessage,
 					bot.WithText(msg),
-					bot.WithAtMobiles([]string{"18384264312"}))}, nil
+					bot.WithAtMobiles([]string{t.rmaDocReceiver}))}, nil
 		}
 		return nil, nil
 	} else {
 		return nil, errors.New(fmt.Sprintln("Get RMA data error: ", err))
 	}
-}
-
-type DataColumnHeader struct {
-	Name  string `json:"name"`
-	Width int    `json:"width"`
-}
-type DetailData struct {
-	ColNames []DataColumnHeader `json:"colNames"`
-	Data     [][]string         `json:"data"`
-}
-
-func (d *DetailData) GetDocNo(ttl int64) []string {
-	data := []string{}
-
-	cache := cache.GetCache()
-	d1 := make(map[string]bool)
-	for _, v := range d.Data {
-		docno := v[0]
-		if _, ok := d1[docno]; !ok {
-			d1[docno] = true
-			if cache.IsExpired(docno, ttl) {
-				data = append(data, docno)
-			}
-		}
-	}
-
-	return data
 }

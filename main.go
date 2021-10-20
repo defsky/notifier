@@ -65,14 +65,14 @@ func main() {
 			log.Println(k, "need non-null string for config key 'type'")
 			continue
 		}
-		if t := target.NewTarget(typeName); t != nil {
+		if t := target.NewTarget(typeName, k); t != nil {
 			if tt, err := t.SetConfig(targetConfig, messageChannel, stopSignalChannel, wg); err != nil {
 				log.Println("start target worker failed: ", err)
 			} else {
 				tt.Start()
 			}
 		} else {
-			log.Println("Undefined target type name: ", typeName)
+			log.Println("Undefined target type: ", typeName)
 		}
 	}
 

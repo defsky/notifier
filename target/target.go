@@ -19,11 +19,11 @@ type Target interface {
 	SetConfig(*viper.Viper, chan BotMessage, chan struct{}, *sync.WaitGroup) (Target, error)
 }
 
-func NewTarget(tn string) Target {
+func NewTarget(tn string, n string) Target {
 	if typeTable[tn] != nil {
 		t := reflect.ValueOf(typeTable[tn]).Type()
 		v := reflect.New(t).Elem()
-		v.FieldByName("Name").SetString(tn)
+		v.FieldByName("Name").SetString(n)
 		return v.Interface().(Target)
 	}
 	return nil
@@ -56,4 +56,5 @@ var typeTable map[string]Target
 func init() {
 	typeTable = make(map[string]Target)
 	typeTable["baddocTarget"] = baddocTarget{}
+	typeTable["paodanTarget"] = paodanTarget{}
 }
