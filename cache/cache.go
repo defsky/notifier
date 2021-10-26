@@ -84,20 +84,24 @@ DONE:
 				break DONE
 			}
 		case <-timeCounter.C:
-			c.lock.Lock()
-			for k, v := range c.Data {
-				ktime := time.Unix(v.CreateTime, 0)
-				existsTime := time.Now().Sub(ktime).Seconds()
-				if existsTime >= float64(v.TimeToLive) {
-					delete(c.Data, k)
-				}
-			}
-			c.lock.Unlock()
+			cleanCacheData(c)
 
 			c.Persist()
 		}
 	}
 	timeCounter.Stop()
+}
+
+func cleanCacheData(c *cache) {
+	c.lock.Lock()
+	for k, v := range c.Data {
+		ktime := time.Unix(v.CreateTime, 0)
+		existsTime := time.Now().Sub(ktime).Seconds()
+		if existsTime >= float64(v.TimeToLive) {
+			delete(c.Data, k)
+		}
+	}
+	c.lock.Unlock()
 }
 
 func GetCache() Cache {
@@ -155,5 +159,6 @@ func checkFileIsExist(filename string) bool {
 
 func Init() {
 	lck = sync.Mutex{}
-	GetCache()
+	c := GetCache()
+	cleanCacheData(c.(*cache))
 }

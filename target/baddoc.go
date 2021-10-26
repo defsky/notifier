@@ -53,7 +53,7 @@ func (t baddocTarget) SetConfig(cfg *viper.Viper, ch chan BotMessage, stop chan 
 	if t.checkDelay <= 30 {
 		t.checkDelay = 30
 	}
-	t.rmaDocMemo = t.Config.GetString("memo")
+	t.rmaDocMemo = t.Config.GetString("rma-doc-memo")
 
 	if t.rmaDocDelay = int64(t.Config.GetInt("rma-doc-delay") * 60); t.rmaDocDelay <= 0 {
 		return nil, errors.New("need positive int value for target key 'rma-doc-delay'")
