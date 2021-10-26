@@ -79,7 +79,7 @@ func (t paodanTarget) worker() {
 	t.isAlive = true
 	ticker := time.NewTicker(time.Second * time.Duration(t.checkDelay))
 	defer ticker.Stop()
-	processPaodanStatus(t)
+	processPaodanStatus(&t)
 DONE:
 	for {
 		select {
@@ -89,7 +89,7 @@ DONE:
 				break DONE
 			}
 		case <-ticker.C:
-			processPaodanStatus(t)
+			processPaodanStatus(&t)
 		}
 		log.Println(t.Name, fmt.Sprintf("target worker sleep %d seconds ...", t.checkDelay))
 	}
@@ -97,7 +97,7 @@ DONE:
 	t.wg.Done()
 }
 
-func processPaodanStatus(t paodanTarget) {
+func processPaodanStatus(t *paodanTarget) {
 	log.Println("query target status:", t.Name)
 	resp, err := t.Get(t.api)
 	if err != nil {
